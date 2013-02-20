@@ -1,0 +1,11 @@
+# OASIS_START
+# DO NOT EDIT (digest: 56a730a6a843478c4d5b260466a2a4fb)
+version = "0.1"
+description = "basic support for extended (80bit) float values"
+archive(byte) = "float80.cma"
+archive(byte, plugin) = "float80.cma"
+archive(native) = "float80.cmxa"
+archive(native, plugin) = "float80.cmxs"
+exists_if = "float80.cma"
+# OASIS_STOP
+

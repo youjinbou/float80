@@ -1,0 +1,3 @@
+<tests/*.cm{x,o}>: use_oUnit, use_float80
+<tests/test_suite.{byte,d.byte}>: use_bigarray, use_unix, use_oUnit, use_float80
+<tests/test_suite.{native,p.native}>: use_bigarray, use_unix, use_oUnit, use_float80
