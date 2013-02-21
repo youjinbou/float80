@@ -9,7 +9,7 @@ let fequal a b =
 let consts = [
   "infinity", F.infinity, FP_infinite;
   "neg infinity", F.neg_infinity, FP_infinite;
-(*  "epsilon", F.add (F.of_int 0) F.epsilon_float, FP_subnormal; *)
+  "epsilon", F.epsilon, FP_normal;
   "nan", F.nan, FP_nan;
 ];;
 
@@ -18,17 +18,31 @@ let test_const v c =
 
 let test_consts = List.map (fun (l,v,c) -> l >:: fun () -> test_const v c) consts
 
-
 let test_epsilon () =
-  assert_equal ~cmp:fequal (F.add (F.of_int 0) F.epsilon_float) F.epsilon_float
+  assert_equal ~cmp:fequal (F.add (F.of_int 0) F.epsilon) F.epsilon
+
+
+let test_una op f1 res =
+  let f1 = F.of_string f1
+  and fr = F.of_string res in
+  let ft = op f1 in
+  assert_equal ~cmp:fequal fr ft
+
+let una_ops = [
+  "neg",  F.neg,  "1", "-1";
+  "pos",  F.pos,  "2",  "2";
+  "sqrt", F.sqrt, "9",  "3";
+  "cos",  F.cos,  "0",  "1";
+  "sin",  F.sin,  "0",  "0";
+]
 
 
 let test_bin op f1 f2 res = 
   let f1 = F.of_string f1
   and f2 = F.of_string f2 
-  and f3 = F.of_string res in
-  let f4 = op f1 f2 in
-  assert_equal ~cmp:fequal f3 f4
+  and fr = F.of_string res in
+  let ft = op f1 f2 in
+  assert_equal ~cmp:fequal fr ft
 
 
 let bin_ops = [
@@ -43,11 +57,14 @@ let bin_ops = [
 let test_bins = List.map (fun (l,o,v1,v2,r) -> l >:: fun () -> test_bin o v1 v2 r) bin_ops
 ;;
 
+let test_unas = List.map (fun (l,o,v1,r) -> l >:: fun () -> test_una o v1 r) una_ops
+;;
 
 let suite = 
   "suite">::: [
     "constants"  >::: test_consts;
     "binary ops" >::: test_bins;
+    "unary ops" >::: test_unas;
     "epsilon"    >:: test_epsilon;
   ]
 ;;

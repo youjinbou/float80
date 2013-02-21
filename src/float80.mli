@@ -49,6 +49,6 @@ val min_float : t
 val max_float : t
 val infinity : t
 val neg_infinity : t
-val epsilon_float : t
+val epsilon : t
 val nan : t
 val classify : t -> fpclass
