@@ -64,7 +64,7 @@ let suite =
   "suite">::: [
     "constants"  >::: test_consts;
     "binary ops" >::: test_bins;
-    "unary ops" >::: test_unas;
+    "unary ops"  >::: test_unas;
     "epsilon"    >:: test_epsilon;
   ]
 ;;

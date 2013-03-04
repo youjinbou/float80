@@ -1,4 +1,4 @@
-type t = string
+type t
 
 external format : string -> t -> string = "ml_float80_format"
 external of_string : string -> t = "ml_float80_of_string"
@@ -74,8 +74,8 @@ external modf : t -> t * t = "ml_float80_modf"
 external of_int : int -> t = "ml_float80_of_int"
 external to_int : t -> int = "ml_float80_to_int"
 
-external of_bits : string -> t = "%identity"
-external to_bits : t -> string = "%identity"
+external of_bits : string -> t = "ml_float80_of_bits"
+external to_bits : t -> string = "ml_float80_of_bits"
 
 let min_float = of_bits "\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00"
 let max_float = of_bits "\xff\xff\xff\xff\xff\xff\xff\xff\xfe\x7f"

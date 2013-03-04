@@ -2,46 +2,89 @@
 #include <caml/alloc.h>
 #include <caml/misc.h>
 #include <caml/memory.h>
-//#include <caml/custom.h>
+#include <caml/custom.h>
+#include <caml/intext.h>
 #include <math.h>
 #include <stdio.h>
+
+#if ( defined(__i386__) || defined(__x86_64__) )
+#else
+#  error "this library expects a x86 compatible platform"
+#endif
 
 #define FLOAT80_SIZE 10  /* 10 bytes */
 
 typedef long double float80;
 
-#define Float80_val(x) *((float80 *)String_val(x))
+typedef struct {
+  struct custom_operations *ops;
+  float80 v;  
+} float80_s;
 
-void float80_copy_str(char *r, const char *l){
+#define Float80_val(x) *((float80 *)Data_custom_val(x))
+
+inline int comp(const float80 l, const float80 r){
+  return l == r ? 0: (l < r ? -1: 1); 
+}
+
+static int float80_compare(value l, value r){
+  const float80 rlf = Float80_val(l);
+  const float80 rrf = Float80_val(r);
+  const int llf = comp(rlf,rrf);
+  return llf;
+}
+
+
+CAMLprim value ml_float80_compare(value l, value r){
+  value res = Val_int(float80_compare(l,r));
+  return res;
+}
+
+static intnat float80_hash(value v){
+  union {
+    struct {
+      uint32 u1;
+      uint32 u2;
+      unsigned short u3;
+    };
+    float80 v;
+  } ld;
+  int u3;      
+  ld.v = Float80_val(v);
+  u3 = ld.u3 | (ld.u3 << 16);
+  return (ld.u1 ^ ld.u2) ^ u3;
+}
+
+static void float80_serialize(value v, uintnat *s32, uintnat *s64){
   int i;
-  for (i=0;i<FLOAT80_SIZE;i++)
-    r[i] = l[i];
+  char *ld = (char *)&(Float80_val(v));
+  for (i = 0; i < FLOAT80_SIZE; i++)
+    caml_serialize_int_1(ld[i]);
+  return;
 }
 
-void store_float80_val(value v,float80 f){
-  float80_copy_str(String_val(v), (const char *)&f);
+static uintnat float80_deserialize(void *dst){
+  int i;
+  char *ld = (char *)dst;
+  for (i = 0; i < FLOAT80_SIZE; i++)
+    ld[i] = caml_deserialize_uint_1();
+  return FLOAT80_SIZE;
 }
 
-CAMLprim value ml_float80_copy(value r, value l){
-  float80_copy_str(String_val(r),String_val(l));
-  return Val_unit;
-}
+CAMLexport struct custom_operations float80_ops = {
+  "float80", custom_finalize_default, float80_compare, float80_hash,
+  float80_serialize, float80_deserialize, custom_compare_ext_default
+};
 
-static value alloc_float80(){
-  return caml_alloc_string(FLOAT80_SIZE);
-}
-
-static value float80_copy(float80 v){
-  const char *l = (const char *)&v;
-  value res = alloc_float80();
-  char *r = String_val(res);
-  float80_copy_str(r,l);
+CAMLprim value ml_float80_copy(long double ld){
+  value res = caml_alloc_custom(&float80_ops, FLOAT80_SIZE, 0, 1);  
+  Float80_val(res) = ld;
   return res;
 }
 
 CAMLprim value ml_float80_of_float(value f){
   float80 ld = (float80) Double_val(f);
-  value res = float80_copy(ld);
+  value res = ml_float80_copy(ld);
   return res;
 }
 
@@ -53,13 +96,28 @@ CAMLprim value ml_float80_to_float(value f){
 
 CAMLprim value ml_float80_of_int(value v){
   float80 ld = (float80) Int_val(v);
-  value res = float80_copy(ld);
+  value res = ml_float80_copy(ld);
   return res;
 }
 
 CAMLprim value ml_float80_to_int(value f){
   float80 ld = (float80) Float80_val(f);
   return Int_val((int)ld);
+}
+
+CAMLprim value ml_float80_of_bits(value s){
+  const char *bits = String_val(s);
+  return ml_float80_copy(*(float80 *)bits);
+}
+
+CAMLprim value ml_float80_to_bits(value f){
+  char *bits = (char *)&(Float80_val(f));
+  value res  = caml_alloc_string(FLOAT80_SIZE);
+  char *s    = String_val(res);
+  int i;
+  for (i=0; i < FLOAT80_SIZE; i++)
+    s[i] = bits[i];
+  return res;
 }
 
 
@@ -133,8 +191,7 @@ CAMLprim value ml_float80_of_string(value v){
   char *str = String_val(v);
   char *end = str + caml_string_length(v);
   float80 r = strtold(str, &end);
-  value res = alloc_float80(); 
-  store_float80_val(res, r);
+  value res = ml_float80_copy(r); 
   return res;
 }
 
@@ -142,7 +199,7 @@ CAMLprim value ml_float80_of_string(value v){
   CAMLprim value ml_float80_##OPNAME(value l){           \
     float80 v    = Float80_val(l);                       \
     float80 fres = OP v;                                 \
-    value res = float80_copy(fres);                      \
+    value res = ml_float80_copy(fres);			 \
     return res;                                          \
   }
 
@@ -151,7 +208,7 @@ CAMLprim value ml_float80_of_string(value v){
     float80 rlf = Float80_val(l);                       \
     float80 rrf = Float80_val(r);                       \
     float80 llf = rlf OP rrf;                           \
-    value res = float80_copy(llf);			\
+    value res = ml_float80_copy(llf);			\
     return res;						\
   }
 
@@ -159,7 +216,7 @@ CAMLprim value ml_float80_of_string(value v){
   CAMLprim value ml_float80_##FUNNAME(value l){         \
     float80 rf = Float80_val(l);                        \
     float80 lf = FUN(rf);				\
-    value res = float80_copy(lf);                       \
+    value res = ml_float80_copy(lf);			\
     return res;						\
   }
 
@@ -169,22 +226,9 @@ CAMLprim value ml_float80_of_string(value v){
     float80 rlf = Float80_val(l);                        \
     float80 rrf = Float80_val(r);                        \
     float80 llf = FUN(rlf,rrf);                          \
-    value res = float80_copy(llf);                       \
+    value res = ml_float80_copy(llf);			 \
     return res;                                          \
   }
-
-inline int comp(const float80 l, const float80 r){
-  return l == r ? 0: (l < r ? -1: 1); 
-}
-
-
-CAMLprim value ml_float80_compare(value l, value r){
-  const float80 rlf = Float80_val(l);
-  const float80 rrf = Float80_val(r);
-  const int llf = comp(rlf,rrf);
-  value res = Val_int(llf);
-  return res;
-}
 
 
 FLOAT80_BIN_OP(add,+);
@@ -241,9 +285,8 @@ CAMLprim value ml_float80_frexp(value v){
   value r = caml_alloc_tuple(2);
   int ri;
   float80 rf = frexpl(f, &ri);
-  Field(r,0) = alloc_float80();
+  Field(r,0) = ml_float80_copy(rf);
   Field(r,1) = Val_int(ri);
-  store_float80_val(Field(r,0), rf);
   return r;
 }
 
@@ -251,7 +294,7 @@ CAMLprim value ml_float80_ldexp(value vf, value vi){
   float80 f = Float80_val(vf);
   int     i = Int_val(vi);
   float80 rf = ldexpl(f, i);
-  value   r = float80_copy(rf);
+  value   r = ml_float80_copy(rf);
   return r;
 }
 
@@ -260,10 +303,8 @@ CAMLprim value ml_float80_modf(value v){
   value   r = caml_alloc_tuple(2);
   float80 rf2;
   float80 rf1 = modfl(f, &rf2);
-  Field(r,0) = alloc_float80();
-  Field(r,1) = alloc_float80();
-  store_float80_val(Field(r,0), rf1);
-  store_float80_val(Field(r,1), rf2);
+  Field(r,0) = ml_float80_copy(rf1);
+  Field(r,1) = ml_float80_copy(rf2);
   return r;
 }
 
@@ -291,7 +332,7 @@ CAMLprim value ml_float80_classify(value v){
 #define UNIT_FUN(NAME,VAL)                      \
 CAMLprim value ml_float80_##NAME(value unit){   \
   float80 f = VAL;                              \
-  value res = float80_copy(f);                  \
+  value res = ml_float80_copy(f);		\
   return res;                                   \
   }                                             
 
